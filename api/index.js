@@ -60,16 +60,41 @@ const User = mongoose.model('User', userSchema);
 
 // ================== API ROUTES ==================
 
-// Health check / root route
+// Health check - no database required
 app.get('/api', (req, res) => {
   res.json({ 
     success: true, 
     message: 'API is running',
+    timestamp: new Date().toISOString(),
+    env: {
+      hasMongoUri: !!process.env.MONGO_URI,
+      nodeEnv: process.env.NODE_ENV
+    },
     endpoints: {
       users: '/api/users',
       user: '/api/users/:id'
     }
   });
+});
+
+// Test database connection
+app.get('/api/health', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    await connectToDatabase();
+    const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+    res.json({ 
+      success: true, 
+      database: dbStatus,
+      responseTime: `${Date.now() - startTime}ms`
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      responseTime: `${Date.now() - startTime}ms`
+    });
+  }
 });
 
 // Get all users
