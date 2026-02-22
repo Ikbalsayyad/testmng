@@ -49,7 +49,7 @@ MONGO_URI=mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/your-da
 
 ### 4. Configure Classes (Optional)
 
-If you need to modify the available classes, edit the `AVAILABLE_CLASSES` array in `public/app.js`:
+If you need to modify the available classes, edit the `AVAILABLE_CLASSES` array in `app.js`:
 
 ```javascript
 const AVAILABLE_CLASSES = [
@@ -146,10 +146,9 @@ testmng/
 ├── .env.example       # Environment variables template
 ├── .env               # Your actual environment variables (create this)
 ├── README.md          # This file
-└── public/
-    ├── index.html     # Main HTML file
-    ├── styles.css     # Styling
-    └── app.js         # Frontend JavaScript logic
+├── index.html         # Main HTML file
+├── styles.css         # Styling
+└── app.js             # Frontend JavaScript logic
 ```
 
 ## Troubleshooting
@@ -163,7 +162,7 @@ testmng/
 - Usernames must be unique. Choose a different username.
 
 ### Classes not showing correctly
-- Verify the class values in `public/app.js` match your frontend's class structure
+- Verify the class values in `app.js` match your frontend's class structure
 
 ## Deploying to Vercel
 
@@ -201,7 +200,7 @@ Then paste your MongoDB connection string.
 - The app uses `serverless-http` for Vercel deployment
 - `server.js` is for local development (runs with `npm start`)
 - `api/index.js` is for Vercel serverless functions
-- Static files are served from the `public/` folder
+- Static files (`index.html`, `styles.css`, `app.js`) are served from root
 - Set `MONGO_URI` in Vercel's environment variables
 
 ## Security Notes

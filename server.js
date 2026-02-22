@@ -11,8 +11,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Serve static files from 'public' folder
-app.use(express.static('public'));
+// Serve static files from root folder
+app.use(express.static('.'));
 
 // MongoDB Connection
 const connectDB = async () => {
