@@ -138,7 +138,10 @@ The app works with your existing user schema:
 
 ```
 testmng/
-├── server.js          # Express server & API routes
+├── server.js          # Express server (for local development)
+├── api/
+│   └── index.js       # Vercel serverless function
+├── vercel.json        # Vercel configuration
 ├── package.json       # Dependencies
 ├── .env.example       # Environment variables template
 ├── .env               # Your actual environment variables (create this)
@@ -161,6 +164,45 @@ testmng/
 
 ### Classes not showing correctly
 - Verify the class values in `public/app.js` match your frontend's class structure
+
+## Deploying to Vercel
+
+### Method 1: Vercel CLI
+
+1. Install Vercel CLI:
+```bash
+npm install -g vercel
+```
+
+2. Deploy:
+```bash
+vercel
+```
+
+3. Set environment variables:
+```bash
+vercel env add MONGO_URI
+```
+Then paste your MongoDB connection string.
+
+### Method 2: Vercel Dashboard
+
+1. Push your code to GitHub
+2. Go to [vercel.com](https://vercel.com) and sign in
+3. Click "New Project"
+4. Import your GitHub repository
+5. Add environment variable:
+   - Name: `MONGO_URI`
+   - Value: Your MongoDB connection string
+6. Click "Deploy"
+
+### Important Notes for Vercel
+
+- The app uses `serverless-http` for Vercel deployment
+- `server.js` is for local development (runs with `npm start`)
+- `api/index.js` is for Vercel serverless functions
+- Static files are served from the `public/` folder
+- Set `MONGO_URI` in Vercel's environment variables
 
 ## Security Notes
 
