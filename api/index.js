@@ -9,17 +9,42 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// MongoDB Connection - Cached for serverless
+// MongoDB Connection - Optimized for serverless
 let cachedDb = null;
+let connectionPromise = null;
 
 async function connectToDatabase() {
-  if (cachedDb && cachedDb.readyState === 1) {
+  // Return cached connection if available and connected
+  if (cachedDb && mongoose.connection.readyState === 1) {
     return cachedDb;
   }
   
-  const connection = await mongoose.connect(process.env.MONGO_URI);
-  cachedDb = connection.connection;
-  return cachedDb;
+  // If connection is in progress, wait for it
+  if (connectionPromise) {
+    return connectionPromise;
+  }
+  
+  if (!process.env.MONGO_URI) {
+    throw new Error('MONGO_URI environment variable is not set');
+  }
+  
+  // Create new connection with optimized settings for serverless
+  connectionPromise = mongoose.connect(process.env.MONGO_URI, {
+    serverSelectionTimeoutMS: 30000,
+    socketTimeoutMS: 75000,
+    connectTimeoutMS: 30000,
+    maxPoolSize: 10,
+    minPoolSize: 1,
+  }).then((conn) => {
+    cachedDb = conn;
+    connectionPromise = null;
+    return conn;
+  }).catch((err) => {
+    connectionPromise = null;
+    throw err;
+  });
+  
+  return connectionPromise;
 }
 
 // User Schema
@@ -34,6 +59,18 @@ const userSchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 
 // ================== API ROUTES ==================
+
+// Health check / root route
+app.get('/api', (req, res) => {
+  res.json({ 
+    success: true, 
+    message: 'API is running',
+    endpoints: {
+      users: '/api/users',
+      user: '/api/users/:id'
+    }
+  });
+});
 
 // Get all users
 app.get('/api/users', async (req, res) => {
@@ -188,6 +225,22 @@ app.put('/api/users/:id/classes', async (req, res) => {
   }
 });
 
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(500).json({ 
+    success: false, 
+    message: err.message || 'Internal Server Error' 
+  });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ 
+    success: false, 
+    message: 'Route not found' 
+  });
+});
+
 // Export for Vercel serverless
-module.exports = app;
-module.exports.handler = serverless(app);
+module.exports = serverless(app);
