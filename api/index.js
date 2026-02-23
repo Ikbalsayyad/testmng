@@ -1,51 +1,4 @@
-const serverless = require('serverless-http');
 const mongoose = require('mongoose');
-const express = require('express');
-const cors = require('cors');
-
-const app = express();
-
-// Middleware
-app.use(cors());
-app.use(express.json());
-
-// MongoDB Connection - Optimized for serverless
-let cachedDb = null;
-let connectionPromise = null;
-
-async function connectToDatabase() {
-  // Return cached connection if available and connected
-  if (cachedDb && mongoose.connection.readyState === 1) {
-    return cachedDb;
-  }
-  
-  // If connection is in progress, wait for it
-  if (connectionPromise) {
-    return connectionPromise;
-  }
-  
-  if (!process.env.MONGO_URI) {
-    throw new Error('MONGO_URI environment variable is not set');
-  }
-  
-  // Create new connection with optimized settings for serverless
-  connectionPromise = mongoose.connect(process.env.MONGO_URI, {
-    serverSelectionTimeoutMS: 30000,
-    socketTimeoutMS: 75000,
-    connectTimeoutMS: 30000,
-    maxPoolSize: 10,
-    minPoolSize: 1,
-  }).then((conn) => {
-    cachedDb = conn;
-    connectionPromise = null;
-    return conn;
-  }).catch((err) => {
-    connectionPromise = null;
-    throw err;
-  });
-  
-  return connectionPromise;
-}
 
 // User Schema
 const userSchema = new mongoose.Schema({
@@ -58,214 +11,182 @@ const userSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', userSchema);
 
-// ================== API ROUTES ==================
+// MongoDB Connection - Cached for serverless
+let cachedDb = null;
 
-// Health check - no database required
-app.get('/api', (req, res) => {
-  res.json({ 
-    success: true, 
-    message: 'API is running',
-    timestamp: new Date().toISOString(),
-    env: {
-      hasMongoUri: !!process.env.MONGO_URI,
-      nodeEnv: process.env.NODE_ENV
-    },
-    endpoints: {
-      users: '/api/users',
-      user: '/api/users/:id'
-    }
-  });
-});
-
-// Test database connection
-app.get('/api/health', async (req, res) => {
-  const startTime = Date.now();
-  try {
-    await connectToDatabase();
-    const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
-    res.json({ 
-      success: true, 
-      database: dbStatus,
-      responseTime: `${Date.now() - startTime}ms`
-    });
-  } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: error.message,
-      responseTime: `${Date.now() - startTime}ms`
-    });
+async function connectToDatabase() {
+  if (cachedDb && mongoose.connection.readyState === 1) {
+    return cachedDb;
   }
-});
-
-// Get all users
-app.get('/api/users', async (req, res) => {
-  try {
-    await connectToDatabase();
-    const users = await User.find({}).select('-password');
-    res.json({ success: true, users });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+  
+  if (!process.env.MONGO_URI) {
+    throw new Error('MONGO_URI environment variable is not set');
   }
-});
+  
+  cachedDb = await mongoose.connect(process.env.MONGO_URI);
+  return cachedDb;
+}
 
-// Get single user
-app.get('/api/users/:id', async (req, res) => {
-  try {
-    await connectToDatabase();
-    const user = await User.findById(req.params.id).select('-password');
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
-    }
-    res.json({ success: true, user });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+// Helper to send JSON response
+const sendJson = (res, statusCode, data) => {
+  res.status(statusCode).json(data);
+};
+
+// Main handler
+module.exports = async (req, res) => {
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
   }
-});
 
-// Create new user
-app.post('/api/users', async (req, res) => {
-  try {
-    await connectToDatabase();
-    const { username, fullname, age, password, classes } = req.body;
-    
-    const existingUser = await User.findOne({ username });
-    if (existingUser) {
-      return res.status(400).json({ success: false, message: 'Username already exists' });
-    }
-    
-    const user = new User({
-      username,
-      fullname,
-      age: age || 0,
-      password: password || '123456789',
-      classes: classes || []
-    });
-    
-    await user.save();
-    
-    res.status(201).json({ 
-      success: true, 
-      message: 'User created successfully', 
-      user: { ...user.toObject(), password: undefined } 
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
+  const path = req.url || req.path || '/';
+  const method = req.method;
 
-// Update user
-app.put('/api/users/:id', async (req, res) => {
   try {
-    await connectToDatabase();
-    const { fullname, age, password, classes } = req.body;
-    
-    const updateData = {};
-    if (fullname !== undefined) updateData.fullname = fullname;
-    if (age !== undefined) updateData.age = age;
-    if (password !== undefined) updateData.password = password;
-    if (classes !== undefined) updateData.classes = classes;
-    
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true, runValidators: true }
-    ).select('-password');
-    
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+    // Health check - no database required
+    if (path === '/api' || path === '/api/') {
+      return sendJson(res, 200, {
+        success: true,
+        message: 'API is running',
+        timestamp: new Date().toISOString(),
+        endpoints: { users: '/api/users', user: '/api/users/:id' }
+      });
     }
-    
-    res.json({ success: true, message: 'User updated successfully', user });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
 
-// Toggle class for user
-app.patch('/api/users/:id/classes', async (req, res) => {
-  try {
-    await connectToDatabase();
-    const { classValue, action } = req.body;
-    
-    const user = await User.findById(req.params.id);
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+    // Test database connection
+    if (path === '/api/health') {
+      const startTime = Date.now();
+      await connectToDatabase();
+      return sendJson(res, 200, {
+        success: true,
+        database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+        responseTime: `${Date.now() - startTime}ms`
+      });
     }
-    
-    if (action === 'add') {
-      if (!user.classes.includes(classValue)) {
-        user.classes.push(classValue);
+
+    // Get all users
+    if (path === '/api/users' && method === 'GET') {
+      await connectToDatabase();
+      const users = await User.find({}).select('-password');
+      return sendJson(res, 200, { success: true, users });
+    }
+
+    // Create new user
+    if (path === '/api/users' && method === 'POST') {
+      await connectToDatabase();
+      const { username, fullname, age, password, classes } = req.body || {};
+      
+      const existingUser = await User.findOne({ username });
+      if (existingUser) {
+        return sendJson(res, 400, { success: false, message: 'Username already exists' });
       }
-    } else if (action === 'remove') {
-      user.classes = user.classes.filter(c => c !== classValue);
+      
+      const user = new User({
+        username,
+        fullname,
+        age: age || 0,
+        password: password || '123456789',
+        classes: classes || []
+      });
+      
+      await user.save();
+      return sendJson(res, 201, {
+        success: true,
+        message: 'User created successfully',
+        user: { ...user.toObject(), password: undefined }
+      });
     }
-    
-    await user.save();
-    
-    res.json({ 
-      success: true, 
-      message: `Class ${action === 'add' ? 'assigned' : 'removed'} successfully`, 
-      classes: user.classes 
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
 
-// Delete user
-app.delete('/api/users/:id', async (req, res) => {
-  try {
-    await connectToDatabase();
-    const user = await User.findByIdAndDelete(req.params.id);
-    
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+    // Single user operations
+    const userMatch = path.match(/^\/api\/users\/([^\/]+)$/);
+    if (userMatch) {
+      const userId = userMatch[1];
+      await connectToDatabase();
+
+      // Get single user
+      if (method === 'GET') {
+        const user = await User.findById(userId).select('-password');
+        if (!user) {
+          return sendJson(res, 404, { success: false, message: 'User not found' });
+        }
+        return sendJson(res, 200, { success: true, user });
+      }
+
+      // Update user
+      if (method === 'PUT') {
+        const { fullname, age, password, classes } = req.body || {};
+        const updateData = {};
+        if (fullname !== undefined) updateData.fullname = fullname;
+        if (age !== undefined) updateData.age = age;
+        if (password !== undefined) updateData.password = password;
+        if (classes !== undefined) updateData.classes = classes;
+        
+        const user = await User.findByIdAndUpdate(userId, updateData, { new: true, runValidators: true }).select('-password');
+        if (!user) {
+          return sendJson(res, 404, { success: false, message: 'User not found' });
+        }
+        return sendJson(res, 200, { success: true, message: 'User updated successfully', user });
+      }
+
+      // Delete user
+      if (method === 'DELETE') {
+        const user = await User.findByIdAndDelete(userId);
+        if (!user) {
+          return sendJson(res, 404, { success: false, message: 'User not found' });
+        }
+        return sendJson(res, 200, { success: true, message: 'User deleted successfully' });
+      }
     }
-    
-    res.json({ success: true, message: 'User deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
 
-// Bulk update classes for user
-app.put('/api/users/:id/classes', async (req, res) => {
-  try {
-    await connectToDatabase();
-    const { classes } = req.body;
-    
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      { classes },
-      { new: true, runValidators: true }
-    ).select('-password');
-    
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+    // Classes operations
+    const classesMatch = path.match(/^\/api\/users\/([^\/]+)\/classes$/);
+    if (classesMatch) {
+      const userId = classesMatch[1];
+      await connectToDatabase();
+
+      // Toggle class
+      if (method === 'PATCH') {
+        const { classValue, action } = req.body || {};
+        const user = await User.findById(userId);
+        if (!user) {
+          return sendJson(res, 404, { success: false, message: 'User not found' });
+        }
+        
+        if (action === 'add' && !user.classes.includes(classValue)) {
+          user.classes.push(classValue);
+        } else if (action === 'remove') {
+          user.classes = user.classes.filter(c => c !== classValue);
+        }
+        
+        await user.save();
+        return sendJson(res, 200, {
+          success: true,
+          message: `Class ${action === 'add' ? 'assigned' : 'removed'} successfully`,
+          classes: user.classes
+        });
+      }
+
+      // Bulk update classes
+      if (method === 'PUT') {
+        const { classes } = req.body || {};
+        const user = await User.findByIdAndUpdate(userId, { classes }, { new: true, runValidators: true }).select('-password');
+        if (!user) {
+          return sendJson(res, 404, { success: false, message: 'User not found' });
+        }
+        return sendJson(res, 200, { success: true, message: 'Classes updated successfully', user });
+      }
     }
-    
-    res.json({ success: true, message: 'Classes updated successfully', user });
+
+    // 404 for unmatched routes
+    return sendJson(res, 404, { success: false, message: 'Route not found' });
+
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error('API Error:', error);
+    return sendJson(res, 500, { success: false, message: error.message });
   }
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(500).json({ 
-    success: false, 
-    message: err.message || 'Internal Server Error' 
-  });
-});
-
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ 
-    success: false, 
-    message: 'Route not found' 
-  });
-});
-
-// Export for Vercel serverless
-module.exports = serverless(app);
+};
