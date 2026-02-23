@@ -2,10 +2,16 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 dotenv.config();
 
 const app = express();
+
+// JWT Secret - In production, use a strong secret from environment variables
+const JWT_SECRET = process.env.JWT_SECRET || 'ultraminds-super-secret-jwt-key-2026';
+const TOKEN_EXPIRY = '24h';
 
 // Middleware
 app.use(cors());
@@ -38,10 +44,228 @@ const userSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', userSchema);
 
-// ================== API ROUTES ==================
+// Admin Schema for authentication
+const adminSchema = new mongoose.Schema({
+  username: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  email: { type: String },
+  role: { type: String, default: 'admin' },
+  lastLogin: { type: Date }
+}, { timestamps: true });
+
+const Admin = mongoose.model('Admin', adminSchema);
+
+// ================== AUTHENTICATION MIDDLEWARE ==================
+
+// Verify JWT token middleware
+const authMiddleware = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Access denied. No token provided.' 
+      });
+    }
+    
+    const token = authHeader.split(' ')[1];
+    
+    const decoded = jwt.verify(token, JWT_SECRET);
+    
+    // Verify admin still exists
+    const admin = await Admin.findById(decoded.id).select('-password');
+    if (!admin) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid token. Admin not found.' 
+      });
+    }
+    
+    req.admin = admin;
+    next();
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid token.' 
+      });
+    }
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Token expired. Please login again.' 
+      });
+    }
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ================== AUTH ROUTES ==================
+
+// Initialize default admin (run once or if no admin exists)
+app.post('/api/auth/init', async (req, res) => {
+  try {
+    // Check if any admin exists
+    const existingAdmin = await Admin.findOne();
+    if (existingAdmin) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Admin already exists. Use login endpoint.' 
+      });
+    }
+    
+    const { username, password, email } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Username and password are required' 
+      });
+    }
+    
+    // Hash password
+    const saltRounds = 12;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    
+    const admin = new Admin({
+      username,
+      password: hashedPassword,
+      email: email || `${username}@admin.local`
+    });
+    
+    await admin.save();
+    
+    res.status(201).json({ 
+      success: true, 
+      message: 'Admin created successfully',
+      admin: { username: admin.username, email: admin.email }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Login
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Username and password are required' 
+      });
+    }
+    
+    // Find admin
+    const admin = await Admin.findOne({ username });
+    if (!admin) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid credentials' 
+      });
+    }
+    
+    // Compare password
+    const isMatch = await bcrypt.compare(password, admin.password);
+    if (!isMatch) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid credentials' 
+      });
+    }
+    
+    // Update last login
+    admin.lastLogin = new Date();
+    await admin.save();
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: admin._id, username: admin.username, role: admin.role },
+      JWT_SECRET,
+      { expiresIn: TOKEN_EXPIRY }
+    );
+    
+    res.json({
+      success: true,
+      message: 'Login successful',
+      token,
+      user: {
+        id: admin._id,
+        username: admin.username,
+        email: admin.email,
+        role: admin.role
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Verify token
+app.get('/api/auth/verify', authMiddleware, (req, res) => {
+  res.json({
+    success: true,
+    user: {
+      id: req.admin._id,
+      username: req.admin.username,
+      email: req.admin.email,
+      role: req.admin.role
+    }
+  });
+});
+
+// Logout (client-side token removal, but we can log it)
+app.post('/api/auth/logout', authMiddleware, (req, res) => {
+  res.json({ success: true, message: 'Logged out successfully' });
+});
+
+// Change password
+app.put('/api/auth/password', authMiddleware, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Current and new password are required' 
+      });
+    }
+    
+    if (newPassword.length < 8) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'New password must be at least 8 characters' 
+      });
+    }
+    
+    // Verify current password
+    const admin = await Admin.findById(req.admin._id);
+    const isMatch = await bcrypt.compare(currentPassword, admin.password);
+    
+    if (!isMatch) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Current password is incorrect' 
+      });
+    }
+    
+    // Hash and update new password
+    const saltRounds = 12;
+    admin.password = await bcrypt.hash(newPassword, saltRounds);
+    await admin.save();
+    
+    res.json({ success: true, message: 'Password changed successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ================== PROTECTED API ROUTES ==================
 
 // Get all users
-app.get('/api/users', async (req, res) => {
+app.get('/api/users', authMiddleware, async (req, res) => {
   try {
     const users = await User.find({}).select('-password');
     res.json({ success: true, users });
@@ -51,7 +275,7 @@ app.get('/api/users', async (req, res) => {
 });
 
 // Get single user
-app.get('/api/users/:id', async (req, res) => {
+app.get('/api/users/:id', authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select('-password');
     if (!user) {
@@ -64,7 +288,7 @@ app.get('/api/users/:id', async (req, res) => {
 });
 
 // Create new user
-app.post('/api/users', async (req, res) => {
+app.post('/api/users', authMiddleware, async (req, res) => {
   try {
     const { username, fullname, age, password, classes } = req.body;
     
@@ -95,7 +319,7 @@ app.post('/api/users', async (req, res) => {
 });
 
 // Update user
-app.put('/api/users/:id', async (req, res) => {
+app.put('/api/users/:id', authMiddleware, async (req, res) => {
   try {
     const { fullname, age, password, classes } = req.body;
     
@@ -122,7 +346,7 @@ app.put('/api/users/:id', async (req, res) => {
 });
 
 // Toggle class for user
-app.patch('/api/users/:id/classes', async (req, res) => {
+app.patch('/api/users/:id/classes', authMiddleware, async (req, res) => {
   try {
     const { classValue, action } = req.body; // action: 'add' or 'remove'
     
@@ -152,7 +376,7 @@ app.patch('/api/users/:id/classes', async (req, res) => {
 });
 
 // Delete user
-app.delete('/api/users/:id', async (req, res) => {
+app.delete('/api/users/:id', authMiddleware, async (req, res) => {
   try {
     const user = await User.findByIdAndDelete(req.params.id);
     
@@ -167,7 +391,7 @@ app.delete('/api/users/:id', async (req, res) => {
 });
 
 // Bulk update classes for user
-app.put('/api/users/:id/classes', async (req, res) => {
+app.put('/api/users/:id/classes', authMiddleware, async (req, res) => {
   try {
     const { classes } = req.body;
     

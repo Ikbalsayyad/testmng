@@ -50,6 +50,92 @@ const API_BASE = '/api';
 let users = [];
 let currentUser = null;
 let deleteUserId = null;
+let authToken = null;
+let adminUser = null;
+
+// ================== AUTH FUNCTIONS ==================
+
+function getAuthToken() {
+  return localStorage.getItem('adminToken') || sessionStorage.getItem('adminToken');
+}
+
+function getAdminUser() {
+  const user = localStorage.getItem('adminUser') || sessionStorage.getItem('adminUser');
+  return user ? JSON.parse(user) : null;
+}
+
+function setAuth(token, user, remember = false) {
+  authToken = token;
+  adminUser = user;
+  
+  if (remember) {
+    localStorage.setItem('adminToken', token);
+    localStorage.setItem('adminUser', JSON.stringify(user));
+  } else {
+    sessionStorage.setItem('adminToken', token);
+    sessionStorage.setItem('adminUser', JSON.stringify(user));
+  }
+}
+
+function clearAuth() {
+  authToken = null;
+  adminUser = null;
+  localStorage.removeItem('adminToken');
+  localStorage.removeItem('adminUser');
+  sessionStorage.removeItem('adminToken');
+  sessionStorage.removeItem('adminUser');
+}
+
+async function checkAuth() {
+  const token = getAuthToken();
+  
+  if (!token) {
+    redirectToLogin();
+    return false;
+  }
+  
+  authToken = token;
+  adminUser = getAdminUser();
+  
+  try {
+    const response = await fetch(`${API_BASE}/auth/verify`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    const data = await response.json();
+    
+    if (!data.success) {
+      clearAuth();
+      redirectToLogin();
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Auth check failed:', error);
+    clearAuth();
+    redirectToLogin();
+    return false;
+  }
+}
+
+function redirectToLogin() {
+  window.location.href = '/login.html';
+}
+
+function logout() {
+  clearAuth();
+  redirectToLogin();
+}
+
+// Auth header for API calls
+function getAuthHeaders() {
+  const token = getAuthToken();
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  };
+}
 
 // ================== DOM ELEMENTS ==================
 const elements = {
@@ -146,7 +232,16 @@ function getClassLabel(classVal) {
 // ================== API FUNCTIONS ==================
 async function fetchUsers() {
   try {
-    const response = await fetch(`${API_BASE}/users`);
+    const response = await fetch(`${API_BASE}/users`, {
+      headers: getAuthHeaders()
+    });
+    
+    if (response.status === 401) {
+      clearAuth();
+      redirectToLogin();
+      return;
+    }
+    
     const data = await response.json();
     if (data.success) {
       users = data.users;
@@ -163,9 +258,16 @@ async function createUser(userData) {
   try {
     const response = await fetch(`${API_BASE}/users`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(userData)
     });
+    
+    if (response.status === 401) {
+      clearAuth();
+      redirectToLogin();
+      return;
+    }
+    
     const data = await response.json();
     
     if (data.success) {
@@ -188,9 +290,16 @@ async function updateUser(userId, userData) {
   try {
     const response = await fetch(`${API_BASE}/users/${userId}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(userData)
     });
+    
+    if (response.status === 401) {
+      clearAuth();
+      redirectToLogin();
+      return;
+    }
+    
     const data = await response.json();
     
     if (data.success) {
@@ -212,8 +321,16 @@ async function deleteUser(userId) {
   showLoading(true);
   try {
     const response = await fetch(`${API_BASE}/users/${userId}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: getAuthHeaders()
     });
+    
+    if (response.status === 401) {
+      clearAuth();
+      redirectToLogin();
+      return;
+    }
+    
     const data = await response.json();
     
     if (data.success) {
@@ -375,6 +492,16 @@ function closeDeleteModal() {
 
 // ================== EVENT LISTENERS ==================
 function initEventListeners() {
+  // Logout button
+  const logoutBtn = document.getElementById('logout-btn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', () => {
+      if (confirm('Are you sure you want to logout?')) {
+        logout();
+      }
+    });
+  }
+  
   // Add user button
   elements.addUserBtn.addEventListener('click', () => {
     elements.username.disabled = false;
@@ -476,11 +603,32 @@ function initEventListeners() {
 
 // ================== INITIALIZATION ==================
 async function init() {
+  // Check authentication first
+  showLoading(true);
+  const isAuthed = await checkAuth();
+  
+  if (!isAuthed) {
+    return; // Will redirect to login
+  }
+  
+  // Update user info in sidebar
+  updateUserInfo();
+  
   initEventListeners();
   renderClasses();
-  showLoading(true);
   await fetchUsers();
   showLoading(false);
+}
+
+function updateUserInfo() {
+  const user = getAdminUser();
+  if (user) {
+    const userInfoSidebar = document.querySelector('.user-info-sidebar');
+    if (userInfoSidebar) {
+      userInfoSidebar.querySelector('.user-name').textContent = user.username;
+      userInfoSidebar.querySelector('.user-role').textContent = user.role || 'Admin';
+    }
+  }
 }
 
 // Start the app

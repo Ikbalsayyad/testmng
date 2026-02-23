@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UltraMinds AI LMS Admin - Login</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="login-logo">
+          <i class="fas fa-robot"></i>
+        </div>
+        <h1>UltraMinds AI LMS</h1>
+        <p>Admin Panel</p>
+      </div>
+      
+      <form id="login-form" class="login-form">
+        <div class="form-group">
+          <label for="username">
+            <i class="fas fa-user"></i>
+            Username
+          </label>
+          <input type="text" id="username" name="username" required placeholder="Enter your username" autocomplete="username">
+        </div>
+        
+        <div class="form-group">
+          <label for="password">
+            <i class="fas fa-lock"></i>
+            Password
+          </label>
+          <div class="password-input">
+            <input type="password" id="password" name="password" required placeholder="Enter your password" autocomplete="current-password">
+            <button type="button" class="toggle-password" id="toggle-password">
+              <i class="fas fa-eye"></i>
+            </button>
+          </div>
+        </div>
+        
+        <div class="form-group remember-me">
+          <label class="checkbox-label">
+            <input type="checkbox" id="remember-me">
+            <span class="checkmark"></span>
+            Remember me
+          </label>
+        </div>
+        
+        <button type="submit" class="btn btn-primary btn-login">
+          <i class="fas fa-sign-in-alt"></i>
+          <span>Sign In</span>
+        </button>
+        
+        <div id="login-error" class="login-error"></div>
+      </form>
+      
+      <div class="login-footer">
+        <p>Secure Admin Access Only</p>
+        <small>© 2026 UltraMinds AI</small>
+      </div>
+    </div>
+    
+    <div class="login-background">
+      <div class="shape shape-1"></div>
+      <div class="shape shape-2"></div>
+      <div class="shape shape-3"></div>
+    </div>
+  </div>
+
+  <!-- Loading Spinner -->
+  <div class="loading-overlay" id="loading">
+    <div class="spinner"></div>
+  </div>
+
+  <script>
+    // Check if already logged in
+    const token = localStorage.getItem('adminToken');
+    if (token) {
+      // Verify token is still valid
+      fetch('/api/auth/verify', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          window.location.href = '/index.html';
+        }
+      })
+      .catch(() => {
+        localStorage.removeItem('adminToken');
+      });
+    }
+
+    // Toggle password visibility
+    document.getElementById('toggle-password').addEventListener('click', function() {
+      const passwordInput = document.getElementById('password');
+      const icon = this.querySelector('i');
+      
+      if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        icon.className = 'fas fa-eye-slash';
+      } else {
+        passwordInput.type = 'password';
+        icon.className = 'fas fa-eye';
+      }
+    });
+
+    // Login form submission
+    document.getElementById('login-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      const rememberMe = document.getElementById('remember-me').checked;
+      const errorDiv = document.getElementById('login-error');
+      const loadingOverlay = document.getElementById('loading');
+      
+      // Clear previous errors
+      errorDiv.textContent = '';
+      errorDiv.style.display = 'none';
+      
+      // Show loading
+      loadingOverlay.classList.add('active');
+      
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          // Store token
+          if (rememberMe) {
+            localStorage.setItem('adminToken', data.token);
+            localStorage.setItem('adminUser', JSON.stringify(data.user));
+          } else {
+            sessionStorage.setItem('adminToken', data.token);
+            sessionStorage.setItem('adminUser', JSON.stringify(data.user));
+          }
+          
+          // Redirect to main page
+          window.location.href = '/index.html';
+        } else {
+          errorDiv.textContent = data.message || 'Login failed. Please try again.';
+          errorDiv.style.display = 'block';
+        }
+      } catch (error) {
+        errorDiv.textContent = 'Connection error. Please check your network.';
+        errorDiv.style.display = 'block';
+      } finally {
+        loadingOverlay.classList.remove('active');
+      }
+    });
+  </script>
+</body>
+</html>
+</task_progress>
+<task_progress>
+- [x] Explore codebase structure
+- [x] Understand current authentication setup
+- [x] Design secure login system
+- [ ] Create login page HTML/CSS
+- [ ] Implement authentication middleware
+- [ ] Add session management
+- [ ] Protect existing routes
+- [ ] Test the implementation
+</task_progress>
+</write_to_file>
