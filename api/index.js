@@ -38,13 +38,14 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'");
   
   // Handle preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  const path = req.url || req.path || '/';
+  const path = (req.url || req.path || '/').split('?')[0];
   const method = req.method;
 
   try {
