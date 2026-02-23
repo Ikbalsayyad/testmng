@@ -12,19 +12,34 @@ const AVAILABLE_CLASSES = [
     val: "{ title: 'Robotics Level 2: Mechanisms', description: 'Explore mechanical systems, actuators, and motion control', image: 'https://images.pexels.com/photos/8566472/pexels-photo-8566472.jpeg?auto=compress&cs=tinysrgb&w=800' }" 
   },
   { 
-    id: 'c3', 
-    label: 'Robotics Level 3: Programming', 
-    val: "{ title: 'Robotics Level 3: Programming', description: 'Advanced programming concepts for autonomous robots', image: 'https://images.pexels.com/photos/2599244/pexels-photo-2599244.jpeg?auto=compress&cs=tinysrgb&w=800' }" 
+    id: 'c3',
+    label: 'Robotics Level 3: Electronics',
+    val: "{ title: 'Robotics Level 3: Electronics', description: 'Deep dive into circuits, microcontrollers, and electronic systems', image: 'https://images.pexels.com/photos/2599244/pexels-photo-2599244.jpeg?auto=compress&cs=tinysrgb&w=800' }"
   },
   { 
-    id: 'c4', 
-    label: 'Robotics Level 4: AI Integration', 
-    val: "{ title: 'Robotics Level 4: AI Integration', description: 'Integrate artificial intelligence with robotics systems', image: 'https://images.pexels.com/photos/8386440/pexels-photo-8386440.jpeg?auto=compress&cs=tinysrgb&w=800' }" 
+    id: 'c4',
+    label: 'Robotics Level 4: Programming',
+    val: "{ title: 'Robotics Level 4: Programming', description: 'Advanced programming techniques for autonomous systems', image: 'https://images.pexels.com/photos/546819/pexels-photo-546819.jpeg?auto=compress&cs=tinysrgb&w=800' }"
   },
   { 
-    id: 'c5', 
-    label: 'Robotics Level 5: Competition Prep', 
-    val: "{ title: 'Robotics Level 5: Competition Prep', description: 'Prepare for robotics competitions with advanced projects', image: 'https://images.pexels.com/photos/258881/pexels-photo-258881.jpeg?auto=compress&cs=tinysrgb&w=800' }" 
+    id: 'c5',
+    label: 'Robotics Level 5: AI Integration',
+    val: "{ title: 'Robotics Level 5: AI Integration', description: 'Integrate artificial intelligence and machine learning into robots', image: 'https://images.pexels.com/photos/8566473/pexels-photo-8566473.jpeg?auto=compress&cs=tinysrgb&w=800' }"
+  },
+  {
+    id: 'c6',
+    label: 'Robotics Level 6: Computer Vision',
+    val: "{ title: 'Robotics Level 6: Computer Vision', description: 'Implement vision systems and image processing algorithms', image: 'https://images.pexels.com/photos/2599247/pexels-photo-2599247.jpeg?auto=compress&cs=tinysrgb&w=800' }"
+  },
+  {
+    id: 'c7',
+    label: 'Robotics Level 7: Advanced Systems',
+    val: "{ title: 'Robotics Level 7: Advanced Systems', description: 'Build complex multi-robot systems and swarm intelligence', image: 'https://images.pexels.com/photos/3861969/pexels-photo-3861969.jpeg?auto=compress&cs=tinysrgb&w=800' }"
+  },
+  {
+    id: 'c8',
+    label: 'Robotics Level 8: Industry Applications',
+    val: "{ title: 'Robotics Level 8: Industry Applications', description: 'Real-world robotics applications in manufacturing and automation', image: 'https://images.pexels.com/photos/1472443/pexels-photo-1472443.jpeg?auto=compress&cs=tinysrgb&w=800' }"
   }
 ];
 
