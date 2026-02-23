@@ -9,28 +9,49 @@ const userSchema = new mongoose.Schema({
   classes: { type: [String], default: [] }
 }, { timestamps: true });
 
-const User = mongoose.model('User', userSchema);
+const User = mongoose.models.User || mongoose.model('User', userSchema);
 
-// MongoDB Connection - Cached for serverless
-let cachedDb = null;
+// MongoDB connection cache for serverless re-use across invocations.
+const globalForMongo = globalThis;
+if (!globalForMongo.__mongooseCache) {
+  globalForMongo.__mongooseCache = { conn: null, promise: null };
+}
+const mongoCache = globalForMongo.__mongooseCache;
+
+mongoose.set('bufferCommands', false);
 
 async function connectToDatabase() {
-  if (cachedDb && mongoose.connection.readyState === 1) {
-    return cachedDb;
+  if (mongoCache.conn && mongoose.connection.readyState === 1) {
+    return mongoCache.conn;
   }
-  
+
   if (!process.env.MONGO_URI) {
     throw new Error('MONGO_URI environment variable is not set');
   }
-  
-  cachedDb = await mongoose.connect(process.env.MONGO_URI);
-  return cachedDb;
+
+  if (!mongoCache.promise) {
+    mongoCache.promise = mongoose.connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 8000,
+      socketTimeoutMS: 20000,
+      maxPoolSize: 10
+    });
+  }
+
+  try {
+    mongoCache.conn = await mongoCache.promise;
+    return mongoCache.conn;
+  } catch (err) {
+    mongoCache.promise = null;
+    throw new Error(`Database connection failed: ${err.message}`);
+  }
 }
 
 // Helper to send JSON response
 const sendJson = (res, statusCode, data) => {
   res.status(statusCode).json(data);
 };
+
+const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
 // Main handler
 module.exports = async (req, res) => {
@@ -106,6 +127,9 @@ module.exports = async (req, res) => {
     const userMatch = path.match(/^\/api\/users\/([^\/]+)$/);
     if (userMatch) {
       const userId = userMatch[1];
+      if (!isValidObjectId(userId)) {
+        return sendJson(res, 400, { success: false, message: 'Invalid user id' });
+      }
       await connectToDatabase();
 
       // Get single user
@@ -147,6 +171,9 @@ module.exports = async (req, res) => {
     const classesMatch = path.match(/^\/api\/users\/([^\/]+)\/classes$/);
     if (classesMatch) {
       const userId = classesMatch[1];
+      if (!isValidObjectId(userId)) {
+        return sendJson(res, 400, { success: false, message: 'Invalid user id' });
+      }
       await connectToDatabase();
 
       // Toggle class
