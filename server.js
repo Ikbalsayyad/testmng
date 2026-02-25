@@ -33,7 +33,28 @@ const userSchema = new mongoose.Schema({
   fullname: { type: String, required: true },
   age: { type: Number, default: 0 },
   password: { type: String, required: true },
-  classes: { type: [String], default: [] }
+  Classes: [
+    {
+      title: String,
+      description: String,
+      price: Number,
+      image: String,
+      id: {
+        type: String,
+        require: true
+      },
+      // chapters: [{
+      //   id: String,
+      //   image: String,
+      //   introText: String,
+      //   isCompleted: Boolean,
+      //   pdfUrl: String,
+      //   teacherMaterial: String,
+      //   title: String,
+      //   videoUrl: String,
+      // }],
+    }
+  ]
 }, { timestamps: true });
 
 const User = mongoose.model('User', userSchema);
@@ -66,28 +87,28 @@ app.get('/api/users/:id', async (req, res) => {
 // Create new user
 app.post('/api/users', async (req, res) => {
   try {
-    const { username, fullname, age, password, classes } = req.body;
-    
-    // Check if user exists
+    const { username, fullname, age, password, Classes } = req.body;
+
+    // Check if user existsS
     const existingUser = await User.findOne({ username });
     if (existingUser) {
       return res.status(400).json({ success: false, message: 'Username already exists' });
     }
-    
+
     const user = new User({
       username,
       fullname,
       age: age || 0,
       password: password || '123456789',
-      classes: classes || []
+      Classes: Classes || []
     });
-    
+
     await user.save();
-    
-    res.status(201).json({ 
-      success: true, 
-      message: 'User created successfully', 
-      user: { ...user.toObject(), password: undefined } 
+
+    res.status(201).json({
+      success: true,
+      message: 'User created successfully',
+      user: { ...user.toObject(), password: undefined }
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -97,24 +118,24 @@ app.post('/api/users', async (req, res) => {
 // Update user
 app.put('/api/users/:id', async (req, res) => {
   try {
-    const { fullname, age, password, classes } = req.body;
-    
+    const { fullname, age, password, Classes } = req.body;
+
     const updateData = {};
     if (fullname !== undefined) updateData.fullname = fullname;
     if (age !== undefined) updateData.age = age;
     if (password !== undefined) updateData.password = password;
-    if (classes !== undefined) updateData.classes = classes;
-    
+    if (Classes !== undefined) updateData.Classes = Classes;
+
     const user = await User.findByIdAndUpdate(
       req.params.id,
       updateData,
       { new: true, runValidators: true }
     ).select('-password');
-    
+
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
-    
+
     res.json({ success: true, message: 'User updated successfully', user });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -125,26 +146,26 @@ app.put('/api/users/:id', async (req, res) => {
 app.patch('/api/users/:id/classes', async (req, res) => {
   try {
     const { classValue, action } = req.body; // action: 'add' or 'remove'
-    
+
     const user = await User.findById(req.params.id);
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
-    
+
     if (action === 'add') {
-      if (!user.classes.includes(classValue)) {
-        user.classes.push(classValue);
+      if (!user.Classes.includes(classValue)) {
+        user.Classes.push(classValue);
       }
     } else if (action === 'remove') {
-      user.classes = user.classes.filter(c => c !== classValue);
+      user.Classes = user.Classes.filter(c => c !== classValue);
     }
-    
+
     await user.save();
-    
-    res.json({ 
-      success: true, 
-      message: `Class ${action === 'add' ? 'assigned' : 'removed'} successfully`, 
-      classes: user.classes 
+
+    res.json({
+      success: true,
+      message: `Class ${action === 'add' ? 'assigned' : 'removed'} successfully`,
+      Classes: user.Classes
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -155,11 +176,11 @@ app.patch('/api/users/:id/classes', async (req, res) => {
 app.delete('/api/users/:id', async (req, res) => {
   try {
     const user = await User.findByIdAndDelete(req.params.id);
-    
+
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
-    
+
     res.json({ success: true, message: 'User deleted successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -169,18 +190,18 @@ app.delete('/api/users/:id', async (req, res) => {
 // Bulk update classes for user
 app.put('/api/users/:id/classes', async (req, res) => {
   try {
-    const { classes } = req.body;
-    
+    const { Classes } = req.body;
+
     const user = await User.findByIdAndUpdate(
       req.params.id,
-      { classes },
+      { Classes },
       { new: true, runValidators: true }
     ).select('-password');
-    
+
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
-    
+
     res.json({ success: true, message: 'Classes updated successfully', user });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
