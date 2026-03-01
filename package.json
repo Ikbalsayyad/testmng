@@ -26,5 +26,8 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.2.1",
     "serverless-http": "^4.0.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.69.0"
   }
 }
