@@ -4,7 +4,9 @@
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "build": "node -e \"console.log('Static files ready for Cloudflare Pages')\"",
+    "pages:deploy": "wrangler pages deploy . --project-name admin-panel"
   },
   "repository": {
     "type": "git",

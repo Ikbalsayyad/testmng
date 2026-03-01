@@ -202,6 +202,11 @@ testmng/
 ### Classes not showing correctly
 - Verify the class values in `app.js` match your frontend's class structure
 
+### "Deploy keeps running after MongoDB Connected Successfully"
+- This happens if Cloudflare Pages build command is set to `npm start`
+- `npm start` launches a long-running Node server and never exits during build
+- Use `npm run build` for Cloudflare Pages builds
+
 ## Deploying to Vercel
 
 ### Method 1: Vercel CLI
@@ -240,6 +245,31 @@ Then paste your MongoDB connection string.
 - `api/index.js` is for Vercel serverless functions
 - Static files (`index.html`, `styles.css`, `app.js`) are served from root
 - Set `MONGO_URI` in Vercel's environment variables
+
+## Deploying Admin Panel to Cloudflare Pages
+
+Use this for static admin panel deployment to project `admin-panel`:
+
+1. Framework preset: `None`
+2. Build command: `npm run build`
+3. Build output directory: `.`
+4. Root directory: repository root
+
+CLI deploy command:
+
+```bash
+npm run pages:deploy
+```
+
+For non-interactive CLI environments, set token first:
+
+```bash
+# Linux/macOS
+export CLOUDFLARE_API_TOKEN=your_token_here
+
+# Windows PowerShell
+$env:CLOUDFLARE_API_TOKEN="your_token_here"
+```
 
 ## Security Features
 
