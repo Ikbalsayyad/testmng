@@ -82,40 +82,40 @@ const Admin = mongoose.model('Admin', adminSchema);
 const authMiddleware = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Access denied. No token provided.' 
+      return res.status(401).json({
+        success: false,
+        message: 'Access denied. No token provided.'
       });
     }
-    
+
     const token = authHeader.split(' ')[1];
-    
+
     const decoded = jwt.verify(token, JWT_SECRET);
-    
+
     // Verify admin still exists
     const admin = await Admin.findById(decoded.id).select('-password');
     if (!admin) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Invalid token. Admin not found.' 
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token. Admin not found.'
       });
     }
-    
+
     req.admin = admin;
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Invalid token.' 
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token.'
       });
     }
     if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Token expired. Please login again.' 
+      return res.status(401).json({
+        success: false,
+        message: 'Token expired. Please login again.'
       });
     }
     res.status(500).json({ success: false, message: error.message });
@@ -128,37 +128,37 @@ const authMiddleware = async (req, res, next) => {
 app.post('/api/auth/init', async (req, res) => {
   try {
     // Check if any admin exists
-    const existingAdmin = await Admin.findOne();
-    if (existingAdmin) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Admin already exists. Use login endpoint.' 
-      });
-    }
-    
+    // const existingAdmin = await Admin.findOne();
+    // if (existingAdmin) {
+    //   return res.status(400).json({ 
+    //     success: false, 
+    //     message: 'Admin already exists. Use login endpoint.' 
+    //   });
+    // }
+
     const { username, password, email } = req.body;
-    
+
     if (!username || !password) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Username and password are required' 
+      return res.status(400).json({
+        success: false,
+        message: 'Username and password are required'
       });
     }
-    
+
     // Hash password
     const saltRounds = 12;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
-    
+
     const admin = new Admin({
       username,
       password: hashedPassword,
       email: email || `${username}@admin.local`
     });
-    
+
     await admin.save();
-    
-    res.status(201).json({ 
-      success: true, 
+
+    res.status(201).json({
+      success: true,
       message: 'Admin created successfully',
       admin: { username: admin.username, email: admin.email }
     });
@@ -171,43 +171,43 @@ app.post('/api/auth/init', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { username, password } = req.body;
-    
+
     if (!username || !password) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Username and password are required' 
+      return res.status(400).json({
+        success: false,
+        message: 'Username and password are required'
       });
     }
-    
+
     // Find admin
     const admin = await Admin.findOne({ username });
     if (!admin) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Invalid credentials' 
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
       });
     }
-    
+
     // Compare password
     const isMatch = await bcrypt.compare(password, admin.password);
     if (!isMatch) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Invalid credentials' 
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
       });
     }
-    
+
     // Update last login
     admin.lastLogin = new Date();
     await admin.save();
-    
+
     // Generate JWT token
     const token = jwt.sign(
       { id: admin._id, username: admin.username, role: admin.role },
       JWT_SECRET,
       { expiresIn: TOKEN_EXPIRY }
     );
-    
+
     res.json({
       success: true,
       message: 'Login successful',
@@ -246,37 +246,37 @@ app.post('/api/auth/logout', authMiddleware, (req, res) => {
 app.put('/api/auth/password', authMiddleware, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
-    
+
     if (!currentPassword || !newPassword) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Current and new password are required' 
+      return res.status(400).json({
+        success: false,
+        message: 'Current and new password are required'
       });
     }
-    
+
     if (newPassword.length < 8) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'New password must be at least 8 characters' 
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 8 characters'
       });
     }
-    
+
     // Verify current password
     const admin = await Admin.findById(req.admin._id);
     const isMatch = await bcrypt.compare(currentPassword, admin.password);
-    
+
     if (!isMatch) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Current password is incorrect' 
+      return res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect'
       });
     }
-    
+
     // Hash and update new password
     const saltRounds = 12;
     admin.password = await bcrypt.hash(newPassword, saltRounds);
     await admin.save();
-    
+
     res.json({ success: true, message: 'Password changed successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
